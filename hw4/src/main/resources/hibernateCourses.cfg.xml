@@ -5,8 +5,8 @@
     <session-factory>
         <!-- JDBC Database connection settings -->
         <property name="hibernate.connection.driver_class">com.mysql.cj.jdbc.Driver</property>
-        <property name="hibernate.connection.url">jdbc:mysql://127.0.0.1:3306/SchoolDB</property>
-        <property name="hibernate.connection.username">user</property>
+        <property name="hibernate.connection.url">jdbc:mysql://courses.db:336/SchoolDB</property>
+        <property name="hibernate.connection.username">root</property>
         <property name="hibernate.connection.password">123456</property>
 
         <!-- JDBC connection pool settings -->

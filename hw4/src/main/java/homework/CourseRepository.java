@@ -27,8 +27,8 @@ public class CourseRepository implements Operations {
     }
 
     private static void createDatabase() throws SQLException {
-        String url = "jdbc:mysql://127.0.0.1:3306/";
-        String user = "user";
+        String url = "jdbc:mysql://courses.db:336/";
+        String user = "root";
         String password = "123456";
 
         try (Connection connection = DriverManager.getConnection(url, user, password)) {
@@ -106,7 +106,7 @@ public class CourseRepository implements Operations {
     public void update(Course item) {
 
         System.out.println("сейчас будет изменен " + item);
-        String[] p = newValues(item.getTitle(), item.getDuration());
+        String[] p = new String[]{ "Jdbc & hibernate", "2" };
 
         item.setTitle(p[0]);
         item.setDuration(Integer.parseInt(p[1]));
