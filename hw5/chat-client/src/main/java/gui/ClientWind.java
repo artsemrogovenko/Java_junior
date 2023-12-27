@@ -1,20 +1,15 @@
 package gui;
 
-import client.Account;
+
 import client.ExtendC;
 
-import javax.swing.JButton;
-import javax.swing.JFrame;
-import javax.swing.JList;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-import javax.swing.JTextField;
+import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.net.Socket;
+import java.util.LinkedList;
 import java.util.Random;
 
 public class ClientWind {
@@ -33,12 +28,14 @@ public class ClientWind {
     public int closed = 0;
     public boolean loginIsPressed = false;
 
-    private static String[] randomnames = { "Alfred", "Bill", "Brandon", "Calvin", "Dean", "Dustin", "Ethan", "Harold",
+    private static String[] randomnames = {"Alfred", "Bill", "Brandon", "Calvin", "Dean", "Dustin", "Ethan", "Harold",
             "Henry", "Irving", "Jason", "Jenssen", "Josh", "Martin", "Nick", "Norm", "Orin", "Pat", "Perry",
-            "Ron", "Shawn", "Tim", "Will", "Wyatt" };
+            "Ron", "Shawn", "Tim", "Will", "Wyatt"};
 
-   // private final String[] data1 = { "Юки", "Дуглас", "Оникс", "Симба", "Норман" };
-    JList<Account> users = new JList<Account>();
+    //private String[] data1 = { "Юки", "Дуглас", "Оникс", "Симба", "Норман" };
+    private String[] data1 = new String[0];
+    ;//= { "Юки", "Дуглас", "Оникс", "Симба", "Норман" };
+    JList<String> users = new JList<String>();
 
     private static JFrame frame = new JFrame("Chat Client");
     private static JButton login = new JButton("Login");
@@ -118,17 +115,19 @@ public class ClientWind {
         bottomPanel.add(send, BorderLayout.EAST);
         centerPanel.add(slog, BorderLayout.CENTER);
         centerPanel.add(users, BorderLayout.EAST);
-        //users.setListData(data1);
+        users.setListData(data1);
     }
 
-  private static ExtendC client;
+    private static ExtendC client;
 
-    public void updateUsers(Account[] accs){
-        users.setListData(accs);
+    public void updateUsers(String[] accs) {
+        data1=accs;
+        users.setListData(data1);
+        frame.repaint();
     }
 
-    public ClientWind( ExtendC newClient) {
-        client=newClient;
+    public ClientWind(ExtendC newClient) {
+        client = newClient;
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(WIDTH, HEIGHT);
         frame.setLocationRelativeTo(null);
@@ -142,27 +141,22 @@ public class ClientWind {
         login.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                if(client.isConnected() && loginIsPressed){
-                    client.interrupt();
+                if (client.isConnected() && loginIsPressed) {
                     client.disconnect();
-                    client.stop();
                     resieveMsg("disconnect");
-                    loginIsPressed=false;
+                    loginIsPressed = false;
                 }
-                if (!client.isConnected() ){
+                if (!client.isConnected()) {
                     System.out.println("presed");
-                    client.init(serverIP.getText(),serverPort.getText());
-                   // try {
-                       // client.sendMessage(nickname.getText()+"\n");
-                        client.login(nickname.getText(),passwd.getText());
-                        frame.setTitle(frame.getTitle()+ " " +nickname.getText());
-                   // } catch (IOException e1) {
-                     //   resieveMsg(e1.getMessage());
-                   // }
-                    if(client.isConnected()){
+                    client.init(serverIP.getText(), serverPort.getText());
+
+                    client.login(nickname.getText(), passwd.getText());
+                    frame.setTitle(frame.getTitle() + " " + nickname.getText());
+
+                    if (client.isConnected()) {
                         resieveMsg("connected");
                         client.start();
-                        loginIsPressed=true;
+                        loginIsPressed = true;
                     }
 
                 }
@@ -201,10 +195,24 @@ public class ClientWind {
 
     }
 
+    private String stringLogic(String message) {
+        if (message.startsWith("@")) {
+            for (String userName : data1) {
+                if (message.substring(1).startsWith(userName)) {
+                    System.out.println(String.format("to{%s}from{%s}%s", userName, nickname.getText(), message.substring(1+userName.length())));
+                    return String.format("to{%s}from{%s}%s", userName, nickname.getText(), message.substring(1+userName.length()));
+                }
+            }
+        }
+        return nickname.getText() + " : " + message;
+    }
+
     private void sendString() {
         if (!sendText.getText().equals("")) {
+            String out = sendText.getText();
             //String out = Logger.getTime() + nickname.getText() + " : " + sendText.getText() + "\n";
-            String out =  nickname.getText() + " : " + sendText.getText() + "\n";
+            // String out =  nickname.getText() + " : " + sendText.getText();
+            out = stringLogic(out);
             chatHistory.setCaretPosition(chatHistory.getDocument().getLength());
             try {
                 client.sendMessage(out);
@@ -213,13 +221,14 @@ public class ClientWind {
             } finally {
                 sendText.setText(null);
             }
-           // Logger.writelog(getNick(),out);
+            // Logger.writelog(getNick(),out);
         }
     }
 
+
     public void resieveMsg(String r) {
-        if(!r.endsWith("\n")){
-            r+="\n";
+        if (!r.endsWith("\n")) {
+            r += "\n";
         }
         chatHistory.append(r);
         //Logger.writelog(getNick(),r);

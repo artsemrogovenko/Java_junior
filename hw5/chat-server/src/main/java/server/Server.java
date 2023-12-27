@@ -1,13 +1,10 @@
 package server;
 
-import gui.ServerRecieve;
-import gui.ServerSend;
-
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-public class Server implements ServerSend {
+public class Server  {
 
     private final ServerSocket serverSocket;
 
@@ -21,6 +18,7 @@ public class Server implements ServerSend {
                 Socket socket = serverSocket.accept();
                 AccountManager accountManager = new AccountManager(socket);
                 System.out.println("Подключен новый клиент!");
+
                 Thread thread = new Thread(accountManager);
                 thread.start();
             }
@@ -37,12 +35,5 @@ public class Server implements ServerSend {
             e.printStackTrace();
         }
     }
-    public ServerSend getInterface(){
-        return this;
-    }
 
-    @Override
-    public void sendtoClient(String text) {
-
-    }
 }

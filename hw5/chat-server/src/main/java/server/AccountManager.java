@@ -3,56 +3,74 @@ package server;
 import org.hibernate.Session;
 import org.hibernate.query.Query;
 
-import javax.persistence.*;
+
 import java.io.*;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
-//@Entity
-//@Table(name = "accounts")
+
 public class AccountManager implements Runnable {
 
     private final Socket socket;
     private BufferedReader bufferedReader;
     private BufferedWriter bufferedWriter;
-    private ObjectInputStream inputStream;
-    private ObjectOutputStream outputStream;
 
+    private static Connector connector;
+    private static Session session;
+
+    private Account current;
     private String id;
     private String login;
 
+    public String getLogin() {
+        return login;
+    }
+    private Account get() {
+        return current;
+    }
     public String getId() {
         return id;
     }
 
 
-    public final static LinkedList<AccountManager> accounts = new LinkedList<>();
+    public final static ArrayList<AccountManager> accounts = new ArrayList<>();
 
     public AccountManager(Socket socket) {
         this.socket = socket;
         try {
             bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
             bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            inputStream = new ObjectInputStream(socket.getInputStream());
-            outputStream = new ObjectOutputStream(socket.getOutputStream());
-            //login = bufferedReader.readLine();
-            try {
-                Account recieve = (Account) inputStream.readObject();
-                createAccount(recieve);
-            } catch (ClassNotFoundException e) {
-                e.printStackTrace();
-                System.out.println("jija");
+
+            login = bufferedReader.readLine();
+            String passwd = bufferedReader.readLine();
+            current = new Account(login, passwd);
+
+            if (!accOnline(current)) {
+                accounts.add(this);
             }
 
-            //accounts.add(this);
             System.out.println(login + " подключился к чату.");
             broadcastMessage("Server: " + login + " подключился к чату.");
+            broadcastMessage(sendUsers());
+
         } catch (IOException e) {
             closeEverything(socket, bufferedReader, bufferedWriter);
         }
     }
+
+
+    /**
+     * высылает список участников
+     */
+    public String sendUsers() {
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append("@users@");
+        for (AccountManager user : accounts) {
+            stringBuilder.append(user.getLogin() + ";");
+        }
+        return stringBuilder.toString();
+    }
+
 
     @Override
     public void run() {
@@ -61,13 +79,13 @@ public class AccountManager implements Runnable {
         while (socket.isConnected()) {
             try {
                 massageFromAccount = bufferedReader.readLine();
-                System.out.println(massageFromAccount);
                 /*if (massageFromaccount == null){
                     // для  macOS
                     closeEverything(socket, bufferedReader, bufferedWriter);
                     break;
                 }*/
-                broadcastMessage(massageFromAccount);
+                messageParser(massageFromAccount);
+                //broadcastMessage(massageFromAccount);
             } catch (IOException e) {
                 closeEverything(socket, bufferedReader, bufferedWriter);
                 break;
@@ -75,13 +93,50 @@ public class AccountManager implements Runnable {
         }
     }
 
-    private static Connector connector;
-    private static Session session;
+    /**
+     * отправть личное сообщение или всем
+     */
+    private void messageParser(String message) {
+        System.out.println(message);
+        if (message.startsWith("to{") && message.contains("}from{")) {
+            for (AccountManager acc : accounts) {
+                if (message.contains("to{" + acc.login + "}from")) {
+                    try {
+                        System.out.println("высылаю pm");
+                        String temp=message.substring(2 + login.length());
+                        System.out.println(temp);
+                        sendMessage(temp, acc);
+                        return;
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        } else {
+            broadcastMessage(message);
+        }
+    }
+
+    //region возможность работы с mysql
 
     /**
      * назначение id и защита от двойника
      */
-    public void createAccount(Account obj) {
+    private boolean createAccount(Account obj) {
+        //если такой пользователь онлайн, выкинуть с чата
+        if (accOnline(obj)) {
+            try {
+                bufferedWriter.write("Двойников не принимаем");
+                //bufferedWriter.newLine();
+                bufferedWriter.flush();
+            } catch (IOException e) {
+                e.printStackTrace();
+            } finally {
+                closeEverything(socket, bufferedReader, bufferedWriter);
+                return false;
+            }
+        }
+
         //если нету в базе
         if (accInDB(obj) == false) {
             session = connector.getSession();
@@ -93,8 +148,8 @@ public class AccountManager implements Runnable {
             session.getTransaction().commit();
             //session.close();
             System.out.println("обьект добавлен " + obj);
-
         }
+
         //session = connector.getSession();
         String hql = "FROM Account WHERE логин=:find_login пароль=:find_passwd";
         Query<Account> query = session.createQuery(hql, Account.class);
@@ -103,27 +158,17 @@ public class AccountManager implements Runnable {
 
         this.id = String.valueOf(query.getResultList());
         this.login = obj.getLogin();
-        session.close();
-        //если такой пользователь онлайн, выкинуть с чата
-        if (accOnline(obj)){
-            try {
-                bufferedWriter.write("Двойников не принимаем");
-               // bufferedWriter.newLine();
-                bufferedWriter.flush();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            finally {
-                closeEverything( socket,  bufferedReader,  bufferedWriter);
-            }
-        }
-
         obj.setId(this.id);
 
+        session.close();
 
+        return true;
     }
 
-    public boolean accInDB(Account a) {
+    /**
+     * назначает id через базу
+     */
+    private boolean accInDB(Account a) {
         boolean userInDB = false;
         session = connector.getSession();
         String hql = "FROM AccountManager WHERE логин=:find_title";
@@ -141,10 +186,15 @@ public class AccountManager implements Runnable {
         }
         return userInDB;
     }
+//endregion
 
-    public boolean accOnline(Account a) {
-        for (AccountManager acc : accounts) {
-            if (acc.id == a.getId() && acc.login == a.getLogin()) {
+    /**
+     * если онлайн такой пользователь
+     */
+    private boolean accOnline(Account a) {
+        for (AccountManager am : accounts) {
+
+            if (am.get().getLogin() == login) {
                 return true;
             }
         }
@@ -154,15 +204,22 @@ public class AccountManager implements Runnable {
     private void broadcastMessage(String message) {
         for (AccountManager account : accounts) {
             try {
-                if (!account.login.equals(login)) {
+                //if (!account.login.equals(login)) {
                     account.bufferedWriter.write(message);
-                    //account.bufferedWriter.newLine();
+                    account.bufferedWriter.newLine();
                     account.bufferedWriter.flush();
-                }
-            } catch (IOException e) {
+               // }
+            }
+            catch (IOException e){
                 closeEverything(socket, bufferedReader, bufferedWriter);
             }
         }
+    }
+
+    private void sendMessage(String message, AccountManager acm) throws IOException {
+        acm.bufferedWriter.write(message);
+        acm.bufferedWriter.newLine();
+        acm.bufferedWriter.flush();
     }
 
 
@@ -189,6 +246,7 @@ public class AccountManager implements Runnable {
 
     private void removeaccount() {
         accounts.remove(this);
+        broadcastMessage(sendUsers());
         System.out.println(login + " покинул чат.");
         broadcastMessage("Server: " + login + " покинул чат.");
     }
